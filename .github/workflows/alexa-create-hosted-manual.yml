@@ -1,0 +1,55 @@
+name: "Alexa | criar skill Bravum (manual, development)"
+
+# Nao roda em push, PR, merge ou agendamento.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmacao:
+        description: "Para criar uma skill Alexa-hosted, digite CRIAR_BRAVUM_SCHOOL_ASSISTANT"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alexa-hosted-create-once
+  cancel-in-progress: false
+
+jobs:
+  create-skill:
+    name: "Criar somente skill Alexa-hosted em development"
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirmacao == 'CRIAR_BRAVUM_SCHOOL_ASSISTANT' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Ler apenas codigo aprovado
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validar script sem acesso a credenciais
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/alexa/create-hosted-skill.js
+          npm install --global ask-cli@2.30.7 --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null
+          ask --version
+
+      - name: Criar apenas skill com autorizacao expressa
+        shell: bash
+        timeout-minutes: 10
+        env:
+          ASK_REFRESH_TOKEN: ${{ secrets.ASK_REFRESH_TOKEN }}
+          ASK_VENDOR_ID: ${{ secrets.ASK_VENDOR_ID }}
+          ALEXA_CREATE_CONFIRMATION: ${{ inputs.confirmacao }}
+          NODE_OPTIONS: "--dns-result-order=ipv4first"
+        run: |
+          set -euo pipefail
+          set +x
+          node scripts/alexa/create-hosted-skill.js
