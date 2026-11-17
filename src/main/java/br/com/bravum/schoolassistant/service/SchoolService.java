@@ -1,6 +1,7 @@
 package br.com.bravum.schoolassistant.service;
 
 import br.com.bravum.schoolassistant.api.ApiModels;
+import br.com.bravum.schoolassistant.alexa.AlexaService;
 import br.com.bravum.schoolassistant.model.*;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -21,6 +22,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class SchoolService {
     @PersistenceContext
     private EntityManager em;
+    private final AlexaService alexa;
+    public SchoolService(AlexaService alexa) { this.alexa=alexa; }
 
     private static final Set<String> CLASSIFICATIONS = Set.of(
         "HOMEWORK", "SCHOOL_EVENT", "MATERIAL_REQUEST", "GENERAL_NOTICE", "UNKNOWN");
@@ -154,6 +157,7 @@ public class SchoolService {
                 em.persist(r);
             }
         }
+        if (created) { em.flush(); alexa.onNewCommunication(tenantId, c.id); }
         return new ApiModels.ImportResult(c.id, created, context == null ? null : context.id,
                 context == null ? "UNCONFIRMED" : context.mappingStatus);
     }
