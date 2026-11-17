@@ -158,8 +158,23 @@ jobs:
           PY
           }
 
+          # Axios usado pela ASK CLI pode respeitar as variaveis padrao de proxy.
+          # Diagnostico seguro: divulga apenas se existem, sem mostrar enderecos.
+          if [[ -n "${HTTPS_PROXY:-}${https_proxy:-}${HTTP_PROXY:-}${http_proxy:-}${ALL_PROXY:-}${all_proxy:-}${ASK_CLI_PROXY:-}" ]]; then
+            echo "AMBIENTE_PROXY_CONFIGURADO=SIM"
+          else
+            echo "AMBIENTE_PROXY_CONFIGURADO=NAO"
+          fi
+
+          # Isolar exclusivamente a ASK CLI das configuracoes de proxy herdadas.
+          # O refresh token permanece como Secret, nao como argumento de linha.
+          ask_direct() {
+            env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy -u ASK_CLI_PROXY ask "$@"
+          }
+          echo "CONEXAO_ASK_CLI=PROXY_PADRAO_DESABILITADO"
+
           echo "PASSO_1=INICIANDO_GET_VENDOR_LIST"
-          if ask smapi get-vendor-list >"$WORK/vendor.out" 2>"$WORK/vendor.err"; then
+          if ask_direct smapi get-vendor-list >"$WORK/vendor.out" 2>"$WORK/vendor.err"; then
             echo "PASSO_1=OK_CONSULTA_CONTA_AMAZON"
             python3 - "$WORK/vendor.out" <<'PY'
           import json, os, pathlib, sys
@@ -177,7 +192,7 @@ jobs:
           fi
 
           echo "PASSO_2=INICIANDO_LIST_SKILLS_FOR_VENDOR"
-          if ask smapi list-skills-for-vendor >"$WORK/skills.out" 2>"$WORK/skills.err"; then
+          if ask_direct smapi list-skills-for-vendor >"$WORK/skills.out" 2>"$WORK/skills.err"; then
             echo "PASSO_2=OK_CONSULTA_SKILLS"
             echo "SUCESSO: conexao SMAPI validada (somente leitura)."
           else
