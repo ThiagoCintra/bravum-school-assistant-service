@@ -14,7 +14,8 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain security(HttpSecurity http,
             @Value("${assistant.security.api-key:}") String apiKey,
-            @Value("${assistant.security.tenant-id:}") String tenantId) throws Exception {
+            @Value("${assistant.security.tenant-id:}") String tenantId,
+            @Value("${assistant.security.alexa-key:}") String alexaKey) throws Exception {
         return http.csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.disable())
                 .formLogin(login -> login.disable())
@@ -23,8 +24,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
-                        .anyRequest().authenticated())
-                .addFilterBefore(new ServiceAuthenticationFilter(apiKey, tenantId), UsernamePasswordAuthenticationFilter.class)
-                .build();
+                        .requestMatchers("/alexa/skill/**").hasRole("ALEXA")
+                        .anyRequest().hasRole("SERVICE"))
+                .addFilterBefore(new ServiceAuthenticationFilter(apiKey, tenantId, alexaKey),
+                        UsernamePasswordAuthenticationFilter.class).build();
     }
 }

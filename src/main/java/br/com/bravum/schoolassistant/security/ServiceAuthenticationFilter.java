@@ -9,61 +9,52 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
+import java.util.regex.Pattern;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** Credencial estritamente interna. Substituir pelo contexto do login Bravum antes de acesso familiar. */
 public class ServiceAuthenticationFilter extends OncePerRequestFilter {
-    private final String expectedKey;
-    private final String expectedTenant;
-
-    public ServiceAuthenticationFilter(@Value("${assistant.security.api-key:}") String expectedKey,
-            @Value("${assistant.security.tenant-id:}") String expectedTenant) {
-        this.expectedKey = expectedKey;
-        this.expectedTenant = expectedTenant;
+    private static final Pattern ALEXA_USER = Pattern.compile("amzn1\\.ask\\.account\\.[a-zA-Z0-9._-]{5,512}");
+    private final String apiKey, tenantId, alexaKey;
+    public ServiceAuthenticationFilter(String apiKey, String tenantId, String alexaKey) {
+        this.apiKey = apiKey == null ? "" : apiKey;
+        this.tenantId = tenantId == null ? "" : tenantId;
+        this.alexaKey = alexaKey == null ? "" : alexaKey;
     }
-
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        return "OPTIONS".equalsIgnoreCase(request.getMethod())
-                || "/actuator/health".equals(request.getServletPath());
+    @Override protected boolean shouldNotFilter(HttpServletRequest request) {
+        return "OPTIONS".equalsIgnoreCase(request.getMethod()) ||
+                "/actuator/health".equals(request.getServletPath());
     }
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        String requestedTenant = request.getHeader("X-Tenant-Id");
-        if (expectedKey.isBlank() || expectedTenant.isBlank() || header == null
-                || !header.startsWith("Bearer ") || !constantTimeEquals(header.substring(7), expectedKey)) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
-            return;
+        boolean isAlexa = request.getServletPath().startsWith("/alexa/skill/");
+        String key = isAlexa ? alexaKey : apiKey;
+        String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (key.length() < 32 || auth == null || !auth.startsWith("Bearer ") ||
+                !MessageDigest.isEqual(auth.substring(7).getBytes(StandardCharsets.UTF_8),
+                                       key.getBytes(StandardCharsets.UTF_8))) {
+            response.sendError(401); return;
         }
-        if (!expectedTenant.equals(requestedTenant)) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN);
-            return;
-        }
-        final UUID tenant;
-        try { tenant = UUID.fromString(expectedTenant); }
-        catch (IllegalArgumentException ex) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
-            return;
+        Object principal;
+        String role;
+        if (isAlexa) {
+            String user = request.getHeader("X-Alexa-User-Id");
+            if (user == null || !ALEXA_USER.matcher(user).matches()) { response.sendError(401); return; }
+            principal = user; role = "ROLE_ALEXA";
+        } else {
+            if (!tenantId.equals(request.getHeader("X-Tenant-Id"))) {response.sendError(403);return;}
+            try { principal = UUID.fromString(tenantId); }
+            catch (IllegalArgumentException e) { response.sendError(401); return; }
+            role = "ROLE_SERVICE";
         }
         try {
             SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken(tenant, null,
-                            List.of(new SimpleGrantedAuthority("ROLE_SERVICE"))));
-            chain.doFilter(request, response);
-        } finally {
-            SecurityContextHolder.clearContext();
-        }
-    }
-
-    private static boolean constantTimeEquals(String a, String b) {
-        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
+                    new UsernamePasswordAuthenticationToken(principal, null,
+                            List.of(new SimpleGrantedAuthority(role))));
+            chain.doFilter(request,response);
+        } finally { SecurityContextHolder.clearContext(); }
     }
 }
