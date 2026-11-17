@@ -231,6 +231,31 @@ public class SchoolService {
                 Communication.class).setParameter("t", tenantId).getResultList();
     }
 
+    /**
+     * Revisão explícita de comunicado. O vínculo da aluna precisa estar confirmado.
+     * Históricos podem ficar visíveis na consulta, mas não geram avisos proativos.
+     */
+    @Transactional
+    public Communication reviewCommunication(UUID tenantId, UUID communicationId) {
+        Communication c = em.find(Communication.class, communicationId);
+        if (c == null || !tenantId.equals(c.tenantId)) throw notFound("Comunicado");
+        List<CommunicationRecipient> confirmed = em.createQuery(
+                "select r from CommunicationRecipient r where r.tenantId=:t and r.communicationId=:c "
+                + "and r.mappingStatus='CONFIRMED' and r.studentId is not null",
+                CommunicationRecipient.class).setParameter("t", tenantId)
+                .setParameter("c", communicationId).setMaxResults(1).getResultList();
+        if (confirmed.isEmpty())
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Não é possível aprovar um comunicado sem destinatária confirmada");
+        if (blank(c.title) && blank(c.body))
+            throw badRequest("Comunicado sem conteúdo");
+        c.reviewStatus = "REVIEWED";
+        c.updatedAt = Instant.now();
+        em.flush();
+        alexa.onNewCommunication(tenantId, communicationId);
+        return c;
+    }
+
     @Transactional
     public Assignment createAssignment(UUID tenantId, ApiModels.AssignmentCreate input) {
         requireTenant(tenantId);
