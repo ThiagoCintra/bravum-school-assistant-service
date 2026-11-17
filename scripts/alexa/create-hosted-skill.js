@@ -39,7 +39,8 @@ async function listAllSkills(client, vendorId) {
       throw new Error('LISTAGEM_INCOMPLETA');
     }
     skills.push(...response.body.skills);
-    if (!response.body.isTruncated) return skills;
+    if (!response.body.isTruncated && !response.body.nextToken) return skills;
+    if (nextToken && response.body.nextToken === nextToken) throw new Error('PAGINACAO_INCOMPLETA');
     nextToken = response.body.nextToken;
     if (!nextToken) throw new Error('PAGINACAO_INCOMPLETA');
   }
