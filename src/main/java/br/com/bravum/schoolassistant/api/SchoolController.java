@@ -55,6 +55,11 @@ public class SchoolController {
     @GetMapping("/communications")
     public List<Communication> communications() { return service.communications(TenantAccess.tenantId()); }
 
+    @PostMapping("/communications/{communicationId}/review")
+    public Communication reviewCommunication(@PathVariable UUID communicationId) {
+        return service.reviewCommunication(TenantAccess.tenantId(), communicationId);
+    }
+
     @PostMapping("/assignments")
     @ResponseStatus(HttpStatus.CREATED)
     public Assignment createAssignment(@Valid @RequestBody ApiModels.AssignmentCreate request) {
