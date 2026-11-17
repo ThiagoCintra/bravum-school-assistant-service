@@ -174,10 +174,10 @@ public class AlexaService {
     public Map<String,Object> summary(String alexaUserId) {
         Link link = linked(alexaUserId);
         Long total = db.queryForObject("SELECT count(*) FROM school_assistant.communications " +
-                    "WHERE tenant_id=? AND captured_at>=now()-interval '14 days'",
+                    "WHERE tenant_id=? AND review_status='REVIEWED' AND captured_at>=now()-interval '14 days' AND EXISTS (SELECT 1 FROM school_assistant.communication_recipients r WHERE r.tenant_id=communications.tenant_id AND r.communication_id=communications.id AND r.mapping_status='CONFIRMED' AND r.student_id IS NOT NULL)",
                 Long.class,link.tenantId());
         Long pending = db.queryForObject("SELECT count(*) FROM school_assistant.assignments " +
-                    "WHERE tenant_id=? AND status='PENDING' AND requires_review=false",Long.class,link.tenantId());
+                    "WHERE tenant_id=? AND status='PENDING' AND requires_review=false AND student_id IS NOT NULL",Long.class,link.tenantId());
         return Map.of("recentCommunications",total,"pendingAssignments",pending);
     }
 
@@ -185,10 +185,10 @@ public class AlexaService {
     public Map<String,Object> messages(String alexaUserId) {
         Link link = linked(alexaUserId);
         Long total = db.queryForObject("SELECT count(*) FROM school_assistant.communications " +
-                    "WHERE tenant_id=? AND captured_at>=now()-interval '14 days'",Long.class,link.tenantId());
+                    "WHERE tenant_id=? AND review_status='REVIEWED' AND captured_at>=now()-interval '14 days' AND EXISTS (SELECT 1 FROM school_assistant.communication_recipients r WHERE r.tenant_id=communications.tenant_id AND r.communication_id=communications.id AND r.mapping_status='CONFIRMED' AND r.student_id IS NOT NULL)",Long.class,link.tenantId());
         List<Map<String,Object>> items = db.query(
                     "SELECT title FROM school_assistant.communications WHERE tenant_id=? " +
-                    "AND captured_at>=now()-interval '14 days' ORDER BY captured_at DESC LIMIT 3",
+                    "AND review_status='REVIEWED' AND captured_at>=now()-interval '14 days' AND EXISTS (SELECT 1 FROM school_assistant.communication_recipients r WHERE r.tenant_id=communications.tenant_id AND r.communication_id=communications.id AND r.mapping_status='CONFIRMED' AND r.student_id IS NOT NULL) ORDER BY captured_at DESC LIMIT 3",
                     (rs,n)->Map.of("title",rs.getString(1)==null?"Comunicado":rs.getString(1)),
                     link.tenantId());
         return Map.of("total",total,"items",items);
@@ -215,9 +215,18 @@ public class AlexaService {
     public void onNewCommunication(UUID tenant,UUID communication) {
         db.update("INSERT INTO school_assistant.alexa_notice_outbox(tenant_id,link_id,communication_id,reference_id) " +
                 "SELECT ?,l.id,?,concat('school-',md5(l.id::text||?::text)) " +
-                "FROM school_assistant.alexa_account_links l WHERE l.tenant_id=? AND l.enabled=true AND l.subscribed=true " +
+                "FROM school_assistant.alexa_account_links l " +
+                "JOIN school_assistant.communications c ON c.id=? AND c.tenant_id=l.tenant_id " +
+                "WHERE l.tenant_id=? AND l.enabled=true AND l.subscribed=true " +
+                "AND c.review_status='REVIEWED' AND c.content_complete=true " +
+                "AND c.source_type='VERIFIED_LIVE_EVENT' " +
+                "AND c.published_at BETWEEN now()-interval '24 hours' AND now()+interval '5 minutes' " +
+                "AND c.captured_at>=now()-interval '30 minutes' " +
+                "AND EXISTS (SELECT 1 FROM school_assistant.communication_recipients r " +
+                "WHERE r.tenant_id=c.tenant_id AND r.communication_id=c.id " +
+                "AND r.mapping_status='CONFIRMED' AND r.student_id IS NOT NULL) " +
                 "ON CONFLICT(link_id,communication_id) DO NOTHING",
-                tenant,communication,communication,tenant);
+                tenant,communication,communication,communication,tenant);
     }
 
     @Transactional
