@@ -1,0 +1,56 @@
+name: "Alexa | verificar autenticacao Amazon (somente leitura)"
+
+# NUNCA executar automaticamente nem publicar skill.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alexa-smapi-auth-readonly
+  cancel-in-progress: false
+
+jobs:
+  check-amazon-auth:
+    name: "Consultar acesso ao Alexa Developer (somente leitura)"
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ASK_REFRESH_TOKEN: ${{ secrets.ASK_REFRESH_TOKEN }}
+      ASK_VENDOR_ID: ${{ secrets.ASK_VENDOR_ID }}
+    steps:
+      - name: Verificar se ambos os Secrets existem
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ASK_REFRESH_TOKEN}" || -z "${ASK_VENDOR_ID}" ]]; then
+            echo "::error::Configure ASK_REFRESH_TOKEN e ASK_VENDOR_ID em Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "Os dois Secrets estao configurados (valores nao exibidos)."
+
+      - name: Preparar Node.js no runner temporario
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instalar ASK CLI oficial no runner temporario
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global ask-cli@latest --no-audit --no-fund --loglevel=error >/dev/null
+
+      - name: Testar autenticacao Amazon por consulta de skills
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Nao imprimir tokens, IDs, nomes, payloads ou erros que possam conter dados da conta.
+          if ask smapi list-skills-for-vendor >/dev/null 2>/dev/null; then
+            echo "SUCESSO: Amazon Developer autorizada e SMAPI consultada (somente leitura)."
+            echo "Nenhuma skill foi criada ou alterada."
+          else
+            echo "::error::Consulta SMAPI falhou. Confira a autorizacao Amazon, o Vendor ID e os Secrets. Nao exponha tokens."
+            exit 1
+          fi
