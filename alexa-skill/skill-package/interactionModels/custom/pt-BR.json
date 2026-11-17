@@ -1,0 +1,89 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "assistente escolar",
+      "intents": [
+        {
+          "name": "ResumoIntent",
+          "samples": [
+            "resumo escolar",
+            "tem novidades na escola",
+            "qual é o resumo da escola"
+          ]
+        },
+        {
+          "name": "RecadosIntent",
+          "samples": [
+            "quais são os recados",
+            "tem comunicado novo",
+            "tem notificações da escola",
+            "quais são as novidades da escola"
+          ]
+        },
+        {
+          "name": "TarefasIntent",
+          "slots": [
+            {
+              "name": "dia",
+              "type": "DIA"
+            }
+          ],
+          "samples": [
+            "tem tarefas",
+            "tem tarefa amanhã",
+            "tarefas de {dia}",
+            "quais tarefas para {dia}",
+            "o que precisa fazer {dia}"
+          ]
+        },
+        {
+          "name": "VincularIntent",
+          "slots": [
+            {
+              "name": "codigo",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "vincular {codigo}",
+            "vincular minha conta com código {codigo}",
+            "usar código {codigo}"
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        }
+      ],
+      "types": [
+        {
+          "name": "DIA",
+          "values": [
+            {
+              "name": {
+                "value": "hoje"
+              }
+            },
+            {
+              "name": {
+                "value": "amanhã"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
