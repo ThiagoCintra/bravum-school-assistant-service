@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: bravum-school-assistant-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/school_assistant}
+    username: ${DB_USERNAME:school_assistant}
+    password: ${DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+server:
+  port: ${SERVER_PORT:8088}
+  servlet:
+    context-path: /api/v1
+assistant:
+  security:
+    api-key: ${SCHOOL_ASSISTANT_API_KEY:}
+    tenant-id: ${SCHOOL_ASSISTANT_TENANT_ID:}
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+logging:
+  level:
+    org.hibernate.SQL: WARN
