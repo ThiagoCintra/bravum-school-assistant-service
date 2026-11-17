@@ -160,10 +160,10 @@ public class AlexaService {
         Link link = linked(alexaUserId);
         if (eventTime == null || eventTime.isAfter(Instant.now().plusSeconds(120)))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Horário de evento inválido");
-        db.update("UPDATE school_assistant.alexa_account_links SET subscribed=?,event_time=?,updated_at=now() " +
+        int changed = db.update("UPDATE school_assistant.alexa_account_links SET subscribed=?,event_time=?,updated_at=now() " +
                     "WHERE id=? AND (event_time IS NULL OR event_time<=?)",
                 enabled,java.sql.Timestamp.from(eventTime),link.id(),java.sql.Timestamp.from(eventTime));
-        if (!enabled) {
+        if (!enabled && changed > 0) {
             db.update("UPDATE school_assistant.alexa_notice_outbox SET status='CANCELLED' " +
                     "WHERE link_id=? AND status='PENDING'",link.id());
         }
