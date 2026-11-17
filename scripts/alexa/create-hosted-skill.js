@@ -97,8 +97,10 @@ async function main() {
   }).trim();
   const askPath = path.join(globalModules, 'ask-cli');
   // A interface interna abaixo corresponde a ASK CLI 2.30.7; nao usar @latest.
-  const AppConfig = require(path.join(askPath, 'lib/model/app-config'));
-  const HostedSkillController = require(path.join(askPath, 'lib/controllers/hosted-skill-controller'));
+  // A publicacao npm da ASK CLI compila lib/ para dist/lib/.
+  // Nunca importar fontes lib/ de checkout: elas nao existem no pacote instalado.
+  const AppConfig = require(path.join(askPath, 'dist/lib/model/app-config'));
+  const HostedSkillController = require(path.join(askPath, 'dist/lib/controllers/hosted-skill-controller'));
   new AppConfig(); // Carrega o perfil temporario na instancia compartilhada da CLI.
   const controller = new HostedSkillController({profile: 'default', doDebug: false});
 
