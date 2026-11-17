@@ -158,6 +158,32 @@ jobs:
           PY
           }
 
+          # A ASK CLI v2.30.7 so aceita perfil por env quando existem tambem
+          # AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY. Para validacao SMAPI,
+          # nao criaremos chaves AWS: gerar perfil descartavel apenas em memoria
+          # do runner (em arquivo 0600, removido pelo trap ao terminar).
+          python3 - "$WORK/.ask/cli_config" <<'PY'
+          import json, os, pathlib, sys
+          path=pathlib.Path(sys.argv[1])
+          path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+          config={
+              "profiles": {
+                  "default": {
+                      "token": {
+                          "access_token": "",
+                          "refresh_token": os.environ["ASK_REFRESH_TOKEN"],
+                          "expires_at": "2000-01-01T00:00:00.000Z"
+                      },
+                      "vendor_id": os.environ["ASK_VENDOR_ID"]
+                  }
+              }
+          }
+          with path.open("x") as f:
+              os.fchmod(f.fileno(), 0o600)
+              json.dump(config, f)
+          print("PERFIL_ASK=TEMPORARIO_CONFIGURADO")
+          PY
+
           # Axios usado pela ASK CLI pode respeitar as variaveis padrao de proxy.
           # Diagnostico seguro: divulga apenas se existem, sem mostrar enderecos.
           if [[ -n "${HTTPS_PROXY:-}${https_proxy:-}${HTTP_PROXY:-}${http_proxy:-}${ALL_PROXY:-}${all_proxy:-}${ASK_CLI_PROXY:-}" ]]; then
@@ -169,7 +195,7 @@ jobs:
           # Isolar exclusivamente a ASK CLI das configuracoes de proxy herdadas.
           # O refresh token permanece como Secret, nao como argumento de linha.
           ask_direct() {
-            env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy -u ASK_CLI_PROXY ask "$@"
+            env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy -u ASK_CLI_PROXY -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u ASK_REFRESH_TOKEN -u ASK_VENDOR_ID HOME="$WORK" ask "$@"
           }
           echo "CONEXAO_ASK_CLI=PROXY_PADRAO_DESABILITADO"
 
