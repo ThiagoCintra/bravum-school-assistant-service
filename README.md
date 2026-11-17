@@ -4,7 +4,7 @@ API de agenda familiar e comunicados escolares da Bravum. Implementação inicia
 
 ## Status
 
-MVP em desenvolvimento, **sem deploy**. Banco separado no Supabase: projeto `bravum-school-assistant`, schema `school_assistant` (18 tabelas já criadas). Os dados desse banco **não foram copiados de outro banco**.
+MVP em desenvolvimento, **sem deploy**. Banco separado no Supabase: projeto `bravum-school-assistant`, schema `school_assistant` (22 tabelas: 18 originais + 4 auxiliares da Alexa). Os dados desse banco **não foram copiados de outro banco**.
 
 - Comunicação importada apenas por JSON estruturado produzido pelo extrator autorizado no Mac.
 - Identificação do aluno exige vínculo explícito; índices JSF **não são IDs estáveis**.
@@ -25,7 +25,7 @@ MVP em desenvolvimento, **sem deploy**. Banco separado no Supabase: projeto `bra
 
 Esta primeira versão usa autenticação **machine-to-machine**, com `Authorization: Bearer` configurado por `SCHOOL_ASSISTANT_API_KEY` e `X-Tenant-Id` exatamente igual a `SCHOOL_ASSISTANT_TENANT_ID`. Sem ambas as variáveis corretas, acesso negado.
 
-Isso **não é** a autenticação familiar definitiva. Antes de expor APIs ao frontend, Alexa ou ChatGPT, integrar o login/contexto ativo da Bravum, autorização por família e, se aplicável, RLS no Supabase.
+Isso **não é** a autenticação familiar definitiva. Para a Alexa, a autenticação usa chave exclusiva da skill e associação persistente da conta Amazon ao responsável e à família; não confia em X-Tenant-Id da skill. Para outros canais, projetar autenticação própria.
 
 O schema tem os privilégios dos papéis `anon` e `authenticated` revogados; RLS ainda não foi habilitado. Não expor o schema diretamente via cliente Supabase.
 
@@ -51,3 +51,13 @@ O fluxo de bootstrap é propositalmente explícito:
 **Não foram cadastrados alunos nem inseridos comunicados no Supabase.**
 
 Mais detalhes em `docs/API.md`, `docs/CLIPESCOLA_CONTRACT.md` e `docs/BRAVUM_STANDARDS.md`.
+
+## Alexa (MVP, sem publicação)
+
+A skill Node.js em `alexa-skill/` oferece consultas por voz e captura de consentimento para avisos de novos comunicados. O backend tem endpoints segregados, pareamento com código temporário, associação família/conta Amazon, e outbox durável para `AMAZON.MessageAlert.Activated`. Os envios ficam **desativados** por padrão até o usuário autorizar no aplicativo Alexa e configurar a Amazon.
+
+**DDL Alexa**: `database/ddl/alexa_addendum.sql` foi aplicado manualmente apenas no Supabase deste projeto, adicionando 4 tabelas privadas e vazias com RLS ativo. As 18 antigas continuam com RLS desativado, mas permissões públicas revogadas. Não publicar o schema.
+
+**Documentação de instalação, segurança e testes**: `docs/ALEXA_INTEGRATION.md`.
+
+PR de desenvolvimento sem testes Maven/Node completos ou deploy; `main` continua intacta.
