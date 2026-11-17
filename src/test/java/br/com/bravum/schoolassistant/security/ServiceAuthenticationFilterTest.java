@@ -14,6 +14,7 @@ class ServiceAuthenticationFilterTest {
     @Test void missingTokenIsUnauthorized() throws Exception {
         ServiceAuthenticationFilter filter = new ServiceAuthenticationFilter(ADMIN,TENANT,ALEXA);
         MockHttpServletRequest request = new MockHttpServletRequest("GET","/students");
+        request.setServletPath("/students");
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request,response,(req,res)->fail("Não deveria chegar ao controller"));
         assertEquals(401,response.getStatus());
@@ -21,6 +22,7 @@ class ServiceAuthenticationFilterTest {
     @Test void wrongTenantIsForbidden() throws Exception {
         ServiceAuthenticationFilter filter = new ServiceAuthenticationFilter(ADMIN,TENANT,ALEXA);
         MockHttpServletRequest request = new MockHttpServletRequest("GET","/students");
+        request.setServletPath("/students");
         request.addHeader("Authorization","Bearer "+ADMIN);
         request.addHeader("X-Tenant-Id", UUID.randomUUID().toString());
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -30,6 +32,7 @@ class ServiceAuthenticationFilterTest {
     @Test void correctlyScopedTokenGrantsTenantPrincipal() throws Exception {
         ServiceAuthenticationFilter filter = new ServiceAuthenticationFilter(ADMIN,TENANT,ALEXA);
         MockHttpServletRequest request = new MockHttpServletRequest("GET","/students");
+        request.setServletPath("/students");
         request.addHeader("Authorization","Bearer "+ADMIN);
         request.addHeader("X-Tenant-Id",TENANT);
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -39,6 +42,7 @@ class ServiceAuthenticationFilterTest {
     @Test void alexaKeyCannotCallAdminEndpoints() throws Exception {
         ServiceAuthenticationFilter filter = new ServiceAuthenticationFilter(ADMIN,TENANT,ALEXA);
         MockHttpServletRequest request = new MockHttpServletRequest("POST","/alexa/admin/link-codes/abc");
+        request.setServletPath("/alexa/admin/link-codes/abc");
         request.addHeader("Authorization","Bearer "+ALEXA);
         request.addHeader("X-Tenant-Id",TENANT);
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -48,6 +52,7 @@ class ServiceAuthenticationFilterTest {
     @Test void linkedAlexaRequestGetsOwnPrincipal() throws Exception {
         ServiceAuthenticationFilter filter = new ServiceAuthenticationFilter(ADMIN,TENANT,ALEXA);
         MockHttpServletRequest request = new MockHttpServletRequest("GET","/alexa/skill/summary");
+        request.setServletPath("/alexa/skill/summary");
         request.addHeader("Authorization","Bearer "+ALEXA);
         request.addHeader("X-Alexa-User-Id","amzn1.ask.account.TEST12345678");
         MockHttpServletResponse response = new MockHttpServletResponse();
