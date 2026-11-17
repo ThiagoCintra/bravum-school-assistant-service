@@ -63,9 +63,9 @@ flowchart TD
 - [ ] Testar respostas da API com dados **sintéticos** antes de usar os dados escolares reais.
 - [ ] Não rodar Actions, pipelines, alterações AWS, migrations automáticas ou deploys sem aprovação explícita do titular.
 
-### D. Conta Amazon Developer (usuário **ainda não sabe se possui**)
-- [ ] Abrir https://developer.amazon.com/alexa/console/ask com a conta Amazon vinculada ao Echo. Conferir se já há acesso; não presumir cadastro existente.
-- [ ] Se necessário, concluir o cadastro de desenvolvedor no portal da Amazon. O cadastro da skill pode ser gratuito; **não criar AWS paga, cadastrar cartão ou aceitar cobranças** sem consentimento expresso.
+### D. Conta Amazon Developer (acesso ao Developer Console já confirmado pelo titular)
+- [x] Acesso ao Alexa Developer Console confirmado pelo titular; o botão **Create Skill** foi exibido. Isso **não** significa que a skill foi criada.
+- [x] Registro de desenvolvedor suficiente para acessar a criação de skills, conforme relato do titular. **Não criar AWS paga, cadastrar cartão ou aceitar cobranças** sem consentimento expresso.
 - [ ] Criar skill custom **pt-BR**, modalidade **Alexa-hosted** quando disponível; importar código, interaction model e configurar Lambda com Skill ID, endpoint HTTPS do Lenovo e chave de integração.
 - [ ] Habilitar a skill na conta Amazon de teste e executar **vínculo por código de uso único**, sem expor o código no Git.
 - [ ] Habilitar notificações explicitamente pelo app Alexa; testar `AMAZON.MessageAlert.Activated` apenas no estágio de desenvolvimento com conteúdo sintético e verificar resposta do provedor.
@@ -86,6 +86,12 @@ flowchart TD
 5. Desvinculação interrompe novas consultas/avisos; tentativas com credenciais erradas não vazam dados.
 6. Nenhuma importação real antes de confirmação de mapeamento e autorização específica; nenhum custo novo contratado.
 7. Só então titular decide aprovação do PR, publicação e ativação gradual das notificações.
+
+## Atualização de 17/11/2026 — automação sem Mac
+- Workflow manual de validação criado no PR: `.github/workflows/alexa-validate-manual.yml`, ainda sem execução.
+- Instruções atualizadas em `docs/ALEXA_GITHUB_ACTIONS.md`. O plano principal **não** exige instalar ASK CLI no Mac.
+- Verificação opcional SMAPI somente leitura requer autorização Amazon e Actions Secrets; não pode ser executada com acesso AWS isolado.
+- Alexa-hosted exige integração com o Git remoto da Amazon para deploy; workflow atual **não publica nem provisiona** a skill.
 
 ## Referências
 - `docs/ALEXA_INTEGRATION.md` — contratos REST, configuração técnica e segurança.
