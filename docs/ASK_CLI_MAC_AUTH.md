@@ -1,5 +1,7 @@
-# ASK CLI no Mac — autorização Amazon Developer (sem deploy)
+# ASK CLI no Mac — ALTERNATIVA LEGADA (sem deploy)
 **Atualização:** 2026-11-17 | **Projeto:** Bravum School Assistant | **Status:** procedimento preparado, **não executado no Mac**.
+
+> **Plano principal atual:** não instalar nada no Mac. Ver `docs/ALEXA_GITHUB_ACTIONS.md` e o workflow manual no GitHub. Esta página fica apenas como referência alternativa, não é uma ação solicitada ao titular.
 
 ## Objetivo
 Autorizar a ASK CLI oficial a consultar/gerenciar skills na conta Amazon Developer do titular, sem entregar tokens ao ChatGPT, sem depender de ações AWS e sem publicar código. O GitHub contém o backend e os arquivos da skill em `alexa-skill/`; não é uma conexão direta do ChatGPT com Amazon Developer.
