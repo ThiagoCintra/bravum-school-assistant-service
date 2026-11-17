@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: bravum-school-assistant-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/school_assistant}
+    username: ${DB_USERNAME:school_assistant}
+    password: ${DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+server:
+  port: ${SERVER_PORT:8088}
+  servlet:
+    context-path: /api/v1
+assistant:
+  security:
+    api-key: ${SCHOOL_ASSISTANT_API_KEY:}
+    tenant-id: ${SCHOOL_ASSISTANT_TENANT_ID:}
+    alexa-key: ${SCHOOL_ALEXA_SKILL_KEY:}
+  alexa:
+    link-pepper: ${ALEXA_LINK_PEPPER:}
+    encryption-key-base64: ${ALEXA_ENCRYPTION_KEY_BASE64:}
+    notifications-enabled: ${ALEXA_NOTIFICATIONS_ENABLED:false}
+    lwa-client-id: ${ALEXA_LWA_CLIENT_ID:}
+    lwa-client-secret: ${ALEXA_LWA_CLIENT_SECRET:}
+    event-region: ${ALEXA_EVENT_REGION:NA}
+    stage: ${ALEXA_EVENT_STAGE:development}
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+logging:
+  level:
+    org.hibernate.SQL: WARN

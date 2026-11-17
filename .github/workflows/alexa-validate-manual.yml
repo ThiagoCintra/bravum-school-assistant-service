@@ -1,0 +1,113 @@
+name: "Alexa | validacao manual (sem deploy)"
+
+# Somente disparo manual. Nao executa no push, no PR ou por agendamento.
+on:
+  workflow_dispatch:
+    inputs:
+      check_amazon_readonly:
+        description: "Consultar somente a lista de skills Amazon? Requer secrets."
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alexa-manual-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline-validation:
+    name: "Arquivos da skill e testes Node (sem Amazon)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout da revisao selecionada
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validar fontes e JSONs sem substituir placeholders
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check alexa-skill/lambda/index.js
+          node --check alexa-skill/lambda/api.js
+          node --check alexa-skill/lambda/test/api.test.js
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'));
+          const model = read('alexa-skill/skill-package/interactionModels/custom/pt-BR.json');
+          const manifest = read('alexa-skill/skill-package/skill-manifest-template.json');
+          const pkg = read('alexa-skill/lambda/package.json');
+          assert.equal(model.interactionModel.languageModel.invocationName, 'assistente escolar');
+          assert.ok(model.interactionModel.languageModel.intents.length > 0);
+          assert.ok(manifest.manifest.publishingInformation.locales['pt-BR']);
+          assert.ok(pkg.scripts.test);
+          assert.equal(
+            manifest.manifest.apis.custom.endpoint.uri,
+            'REPLACE_WITH_ALEXA_HOSTED_LAMBDA_ARN',
+            'O manifesto aqui deve permanecer um template, nao fazer deploy'
+          );
+          console.log('Sintaxe e contrato estatico: OK (manifesto ainda e template)');
+          NODE
+      - name: Testes da skill Node (sem chamada a Amazon)
+        working-directory: alexa-skill/lambda
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          npm test
+
+  amazon-readonly:
+    name: "Verificar acesso Amazon, somente leitura"
+    if: ${{ github.ref == 'refs/heads/main' && inputs.check_amazon_readonly == true }}
+    needs: offline-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ASK_REFRESH_TOKEN: ${{ secrets.ASK_REFRESH_TOKEN }}
+      ASK_VENDOR_ID: ${{ secrets.ASK_VENDOR_ID }}
+    steps:
+      - name: Verificar secrets sem imprimi-los
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ASK_REFRESH_TOKEN}" || -z "${ASK_VENDOR_ID}" ]]; then
+            echo "::error::Faltam ASK_REFRESH_TOKEN e/ou ASK_VENDOR_ID nos Actions Secrets. Configure diretamente no GitHub; nunca envie ao ChatGPT."
+            exit 1
+          fi
+      - name: Node.js 22 para ASK CLI
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Instalar ASK CLI apenas no runner efemero
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global ask-cli@latest --no-audit --no-fund --loglevel=error >/dev/null
+      - name: Consultar skills sem imprimir dados da conta
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A lista nao e publicada em logs. Nao criar nem alterar skills.
+          if ask smapi list-skills-for-vendor >/dev/null 2>/dev/null; then
+            echo "Autenticacao Amazon e consulta SMAPI somente leitura: OK"
+          else
+            echo "::error::Consulta Amazon falhou. Conferir validade do refresh token, vendor ID e permissoes; detalhes privados nao sao exibidos."
+            exit 1
+          fi
+
+  amazon-not-configured:
+    name: "Orientar quando verificacao Amazon foi solicitada fora de main"
+    if: ${{ github.ref != 'refs/heads/main' && inputs.check_amazon_readonly == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Por seguranca, o acesso a secrets Amazon e permitido somente na branch main, apos revisao/merge do PR."
+          echo "Nenhuma consulta Amazon foi executada."
