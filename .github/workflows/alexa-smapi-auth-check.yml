@@ -169,9 +169,7 @@ jobs:
           # Isolar exclusivamente a ASK CLI das configuracoes de proxy herdadas.
           # O refresh token permanece como Secret, nao como argumento de linha.
           ask_direct() {
-            env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \\
-                -u http_proxy -u https_proxy -u all_proxy \\
-                -u ASK_CLI_PROXY ask "$@"
+            env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy -u ASK_CLI_PROXY ask "$@"
           }
           echo "CONEXAO_ASK_CLI=PROXY_PADRAO_DESABILITADO"
 
