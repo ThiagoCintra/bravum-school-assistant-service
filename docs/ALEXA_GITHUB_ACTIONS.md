@@ -28,6 +28,16 @@ O campo `check_amazon_readonly` vem **desligado** por padrao. O runner exige ape
 
 O workflow esta **apenas na branch do PR draft**. O GitHub em geral exige que o arquivo de `workflow_dispatch` exista na branch padrao para poder inicia-lo pelo painel Actions. **Nao promover este workflow a main sem revisar o PR e autorizar o merge.** Nenhum workflow foi iniciado neste preparo.
 
+## Estado da configuracao em 17/11/2026
+- [x] O titular informou seu **Vendor ID** no chat. O formato foi identificado como `ASK_VENDOR_ID`; **o valor nao foi adicionado a arquivos publicos**.
+- [ ] `ASK_VENDOR_ID` armazenado como **Repository Secret** no GitHub. A integracao GitHub disponivel aqui permite editar arquivos e PRs, mas **nao fornece uma acao para criar/alterar Secrets**; portanto este cadastro **nao foi feito automaticamente**.
+- [ ] `ASK_REFRESH_TOKEN` obtido via consentimento Amazon Developer e salvo como Repository Secret.
+- [ ] Validacao real Amazon concluida; ainda nao realizada.
+
+**A unica acao manual de cadastro do Vendor ID:** entrar em [GitHub Actions Secrets do repositorio](https://github.com/ThiagoCintra/bravum-school-assistant-service/settings/secrets/actions), selecionar **New repository secret**, usar o nome exato `ASK_VENDOR_ID`, colar o valor ja conhecido do titular no campo **Secret** e salvar. Nao registrar o valor em issue, commit, arquivo README, log ou chat novamente.
+
+**Nao iniciar workflow enquanto o refresh token nao estiver autorizado e salvo**; o workflow continua manual e a etapa Amazon esta bloqueada a `main`.
+
 ## Autorizacao Amazon — etapa obrigatoria e separada
 
 Ter a AWS conectada **nao fornece** a autorizacao Amazon Developer/SMAPI. O cadastro na Developer Console e necessario, mas nao basta para autenticar um runner. O workflow usa variaveis ambientais oficialmente suportadas pela ASK CLI, configuradas **somente como GitHub Actions Secrets**:
