@@ -28,10 +28,20 @@ O campo `check_amazon_readonly` vem **desligado** por padrao. O runner exige ape
 
 O workflow esta **apenas na branch do PR draft**. O GitHub em geral exige que o arquivo de `workflow_dispatch` exista na branch padrao para poder inicia-lo pelo painel Actions. **Nao promover este workflow a main sem revisar o PR e autorizar o merge.** Nenhum workflow foi iniciado neste preparo.
 
+## Confirmacao da autorizacao (informada pelo titular em 17/11/2026)
+- [x] Amazon Developer: ASK CLI concluiu a autorizacao com sucesso no AWS CloudShell, sem associar AWS/IAM.
+- [x] GitHub CLI: autenticacao concluida na conta correta.
+- [x] Actions Secrets: terminal confirmou que `ASK_VENDOR_ID` e `ASK_REFRESH_TOKEN` existem no repositorio. **Nao foram lidos, copiados nem verificados diretamente pelo conector GitHub**.
+- [ ] Autenticacao SMAPI executada a partir do GitHub Actions: ainda pendente.
+- [x] Foi criado o **PR #2**, independente do backend, contendo apenas a Action manual de consulta SMAPI somente leitura: https://github.com/ThiagoCintra/bravum-school-assistant-service/pull/2
+- [ ] Proximo passo autorizado pelo titular: revisar/mesclar o PR #2 (nao mesclado pelo assistente) e, entao, rodar manualmente o novo workflow na `main`. Esse fluxo evita aprovar o PR #1 inteiro apenas para validar a conexao Amazon.
+
+A obtencao das credenciais foi concluida, mas **nenhuma Action foi executada, nenhuma skill foi criada e nenhum recurso de hospedagem AWS foi provisionado**.
+
 ## Estado da configuracao em 17/11/2026
 - [x] O titular informou seu **Vendor ID** no chat. O formato foi identificado como `ASK_VENDOR_ID`; **o valor nao foi adicionado a arquivos publicos**.
-- [ ] `ASK_VENDOR_ID` armazenado como **Repository Secret** no GitHub. A integracao GitHub disponivel aqui permite editar arquivos e PRs, mas **nao fornece uma acao para criar/alterar Secrets**; portanto este cadastro **nao foi feito automaticamente**.
-- [ ] `ASK_REFRESH_TOKEN` obtido via consentimento Amazon Developer e salvo como Repository Secret.
+- [x] `ASK_VENDOR_ID` armazenado como **Repository Secret**, confirmado no terminal pelo titular (nao pelo conector GitHub).
+- [x] `ASK_REFRESH_TOKEN` obtido via consentimento Amazon Developer e salvo como Repository Secret, confirmado no terminal pelo titular.
 - [ ] Validacao real Amazon concluida; ainda nao realizada.
 
 **A unica acao manual de cadastro do Vendor ID:** entrar em [GitHub Actions Secrets do repositorio](https://github.com/ThiagoCintra/bravum-school-assistant-service/settings/secrets/actions), selecionar **New repository secret**, usar o nome exato `ASK_VENDOR_ID`, colar o valor ja conhecido do titular no campo **Secret** e salvar. Nao registrar o valor em issue, commit, arquivo README, log ou chat novamente.
@@ -64,7 +74,7 @@ Se a conta Amazon ainda nao tiver skills, a consulta pode retornar uma lista vaz
 - [x] Codigo da API/skill existente no PR #1, sem publicacao.
 - [x] Workflow manual e modo de consulta Amazon **codificados**, sem executa-los.
 - [ ] Testes do workflow executados no GitHub.
-- [ ] Credenciais Amazon Developer autorizadas e configuradas como secrets.
+- [x] Credenciais Amazon Developer autorizadas e configuradas como secrets, conforme registro fornecido pelo titular.
 - [ ] Consulta SMAPI confirmada.
 - [ ] Skill Alexa-hosted criada na conta do titular e repositório remoto Amazon identificado.
 - [ ] API Lenovo, HTTPS e testes ponta a ponta validados.
