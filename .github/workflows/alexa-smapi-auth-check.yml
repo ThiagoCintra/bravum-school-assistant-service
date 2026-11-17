@@ -138,7 +138,7 @@ jobs:
               # Somente o nome do host, nunca a URL completa nem a mensagem bruta.
               # O filtro nao permite revelar tokens ou subdominios arbitrarios.
               match = re.search(
-                  r'getaddrinfo\\s+(?:ENOTFOUND|EAI_AGAIN)\\s+([a-z0-9._-]+)',
+                  r'getaddrinfo\s+(?:ENOTFOUND|EAI_AGAIN)\s+([a-z0-9._-]+)',
                   raw, re.I
               )
               if match:
