@@ -66,3 +66,11 @@ https://developer.amazon.com/en-US/docs/alexa/smapi/alexa-reminders-guidelines-f
 - As 4 tabelas alexa_* têm RLS habilitado e papéis públicos sem privileges.
 - 18 tabelas legadas do schema school_assistant permanecem sem RLS: a configuração atual nega USAGE/SELECT para anon e authenticated, mas manter o schema fora da API pública e avaliar ativação de RLS em revisão futura.
 - Sem dados reais, sem novos recursos com cobrança, sem deploy ou pipelines de CI nesta PR.
+
+## Proteção para extração histórica ClipEscola (17/11/2026)
+- O extrator registrou 11 comunicados históricos, sem IDs estáveis de alunas e sem prazos confirmados. **Não importar como notificações novas.**
+- A API mantém importações novas como `review_status=PENDING`. Consultas por voz só incluem comunicados revisados e associados a uma aluna confirmada.
+- `POST /api/v1/communications/{communicationId}/review` permite aprovar um comunicado apenas se existe destinatária confirmada. A aprovação de material histórico permite leitura por voz, mas não dispara aviso proativo.
+- O worker só recebe um comunicado se `source_type=VERIFIED_LIVE_EVENT`, `content_complete=true`, `review_status=REVIEWED`, data de publicação nas últimas 24h, captura nos últimos 30min, destinatária confirmada e consentimento da conta Alexa.
+- `VISIBLE_DOM` e os 11 registros históricos não cumprem esse critério. Não marcar uma extração histórica como `VERIFIED_LIVE_EVENT` artificialmente.
+- O modelo atual ainda não estabelece um evento ClipEscola em tempo real; só liberar `VERIFIED_LIVE_EVENT` após evidência e autorização reais.
