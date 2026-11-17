@@ -1,0 +1,53 @@
+{
+  "manifest": {
+    "publishingInformation": {
+      "locales": {
+        "pt-BR": {
+          "name": "Assistente Escolar",
+          "summary": "Comunicados e tarefas escolares da família",
+          "description": "Consultas por voz sobre comunicados e tarefas escolares com vínculo seguro à família.",
+          "examplePhrases": [
+            "Alexa, abra assistente escolar",
+            "Alexa, pergunte ao assistente escolar pelos recados",
+            "Alexa, pergunte ao assistente escolar sobre tarefas de amanhã"
+          ],
+          "keywords": [
+            "escola",
+            "comunicados",
+            "tarefas"
+          ]
+        }
+      },
+      "isAvailableWorldwide": false,
+      "testingInstructions": "Use dados fictícios e vincule conta por código."
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "REPLACE_WITH_ALEXA_HOSTED_LAMBDA_ARN"
+        }
+      }
+    },
+    "manifestVersion": "1.0",
+    "permissions": [
+      {
+        "name": "alexa::devices:all:notifications:write"
+      }
+    ],
+    "events": {
+      "publications": [
+        {
+          "eventName": "AMAZON.MessageAlert.Activated"
+        }
+      ],
+      "subscriptions": [
+        {
+          "eventName": "SKILL_PROACTIVE_SUBSCRIPTION_CHANGED"
+        }
+      ],
+      "endpoint": {
+        "uri": "REPLACE_WITH_ALEXA_HOSTED_LAMBDA_ARN"
+      }
+    }
+  }
+}
