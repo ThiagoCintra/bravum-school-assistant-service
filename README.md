@@ -14,7 +14,7 @@ MVP em desenvolvimento, **sem deploy**. Banco separado no Supabase: projeto `bra
 
 ## Padrão de governança Bravum
 
-- Branch de implementação e PR para `main`; sem alteração de infra, deploy ou workflows.
+- Branch de implementação e PR para `main`; sem alteração de infraestrutura ou deploy. Foi incluído um workflow **exclusivamente manual** de validação e consulta opcional somente leitura à Amazon, ainda não executado.
 - `spring.jpa.hibernate.ddl-auto=validate`: **não executar migrations/DDL automaticamente**.
 - DDL de referência em `database/ddl/school_assistant.sql`. O schema já foi criado manualmente no Supabase.
 - Credenciais exclusivamente por variáveis de ambiente, nunca em código ou no repositório.
@@ -60,4 +60,6 @@ A skill Node.js em `alexa-skill/` oferece consultas por voz e captura de consent
 
 **Documentação de instalação, segurança e testes**: `docs/ALEXA_INTEGRATION.md`.
 
-PR de desenvolvimento sem testes Maven/Node completos ou deploy; `main` continua intacta.
+**Automação Alexa sem instalação no Mac:** `docs/ALEXA_GITHUB_ACTIONS.md` e `.github/workflows/alexa-validate-manual.yml` (somente `workflow_dispatch`, sem publicação). A AWS conectada não autoriza o Developer Console: o teste SMAPI depende de consentimento Amazon e secrets no GitHub. O documento `docs/ASK_CLI_MAC_AUTH.md` é **alternativo**, não é o fluxo principal.
+
+PR de desenvolvimento sem testes Maven/Node completos ou deploy; `main` continua intacta. O workflow foi codificado no PR, **não executado**; a skill ainda não existe na Amazon.
