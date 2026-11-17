@@ -1,6 +1,6 @@
 name: "Alexa | verificar autenticacao Amazon (somente leitura)"
 
-# Somente execucao manual; nenhum push, PR, cron ou deploy.
+# Manual e somente leitura. Nunca executa automaticamente.
 on:
   workflow_dispatch:
 
@@ -13,100 +13,118 @@ concurrency:
 
 jobs:
   check-amazon-auth:
-    name: "Diagnosticar acesso Amazon sem expor credenciais"
+    name: "Separar conectividade, autenticacao e permissao SMAPI"
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Node.js 22 no runner temporario
+      - name: Preparar Node.js 22 no runner temporario
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Instalar ASK CLI sem expor Secrets ao instalador
+      - name: Instalar ASK CLI sem credenciais presentes no ambiente
         shell: bash
         run: |
           set -euo pipefail
           npm install --global ask-cli@latest --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null
           ask --version
 
-      - name: Verificar autorizacao e permissao Amazon (somente leitura)
+      - name: Testar conexao HTTPS publica (sem tokens)
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          probe() {
+            local label="$1" url="$2" output status
+            output="$(mktemp)"
+            # Os testes nao incluem headers de autenticacao, Secrets ou payload.
+            if status="$(curl --silent --show-error --ipv4 --connect-timeout 7 --max-time 15 --output /dev/null --write-out '%{http_code}' "$url" 2>"$output")"; then
+              echo "HTTPS_${label}=CONECTOU_HTTP_${status}"
+            else
+              case "$(cat "$output")" in
+                *"Could not resolve host"*) echo "HTTPS_${label}=DNS_FALHOU" ;;
+                *"SSL certificate"*|*"certificate verify failed"*) echo "HTTPS_${label}=TLS_CERTIFICADO_FALHOU" ;;
+                *"timed out"*) echo "HTTPS_${label}=TIMEOUT" ;;
+                *"Failed to connect"*|*"Connection refused"*) echo "HTTPS_${label}=CONEXAO_FALHOU" ;;
+                *) echo "HTTPS_${label}=FALHA_DE_CONECTIVIDADE" ;;
+              esac
+            fi
+            rm -f "$output"
+          }
+          probe LWA https://api.amazon.com/auth/o2/token
+          probe SMAPI https://api.amazonalexa.com/v1/vendors
+          echo "Nota: HTTP 400/401/403/405 sao aceitaveis nos testes sem credenciais; mostram que o HTTPS respondeu."
+
+      - name: Validar autorizacao Amazon somente leitura
         shell: bash
         env:
           ASK_REFRESH_TOKEN: ${{ secrets.ASK_REFRESH_TOKEN }}
           ASK_VENDOR_ID: ${{ secrets.ASK_VENDOR_ID }}
+          NODE_OPTIONS: "--dns-result-order=ipv4first"
         run: |
           set -euo pipefail
           set +x
           umask 077
-
           if [[ -z "${ASK_REFRESH_TOKEN}" || -z "${ASK_VENDOR_ID}" ]]; then
-            echo "::error::FALHA_CONFIG: um dos Actions Secrets nao existe ou esta vazio."
+            echo "::error::FALHA_CONFIG: falta um dos dois Actions Secrets."
             exit 1
           fi
-
           WORK="$(mktemp -d)"
           trap 'rm -rf "$WORK"' EXIT
 
-          # Nao usar --debug: ele pode incluir headers, URLs e tokens.
-          # Guardar stdout/stderr em arquivos efemeros, nunca publicar conteudo bruto.
-          diagnose() {
+          # Nao exibe logs brutos, urls, nomes, IDs, respostas ou debug.
+          categorize() {
             python3 - "$1" "$2" "$3" <<'PY'
-          import sys, pathlib, re
-          stage, stdout_path, stderr_path = sys.argv[1:]
-          content = (pathlib.Path(stderr_path).read_text(errors="replace")
-                     + "\n" + pathlib.Path(stdout_path).read_text(errors="replace")).lower()
-          if re.search(r'invalid_grant|refresh token.*(expired|invalid)|token refresh error', content):
-              category = "TOKEN_EXPIRADO_OU_INVALIDO"
-          elif re.search(r'\b401\b|unauthorized|unauthorised', content):
-              category = "HTTP_401_AUTENTICACAO"
-          elif re.search(r'\b403\b|forbidden|access.denied|not authorized', content):
-              category = "HTTP_403_PERMISSAO_OU_CADASTRO"
-          elif re.search(r'\b429\b|too many requests|rate.limit', content):
-              category = "HTTP_429_LIMITE"
-          elif re.search(r'\b400\b|bad.request|invalid_request', content):
-              category = "HTTP_400_REQUISICAO"
-          elif re.search(r'\b(500|502|503|504)\b|internal server error', content):
-              category = "HTTP_5XX_AMAZON"
-          elif re.search(r'econnreset|econnrefused|etimedout|enotfound|network|timeout', content):
-              category = "REDE_OU_TIMEOUT"
-          elif re.search(r'unknown command|not a command|command not found|invalid option', content):
-              category = "COMANDO_OU_VERSAO_CLI"
-          elif re.search(r'profile|cli_config|configuration', content):
-              category = "PERFIL_OU_CONFIGURACAO_CLI"
-          else:
-              category = "ERRO_NAO_CLASSIFICADO"
-          print("DIAGNOSTICO_" + stage + "=" + category)
+          import pathlib, re, sys
+          stage, stdout_file, stderr_file = sys.argv[1:]
+          raw = (pathlib.Path(stderr_file).read_text(errors="replace") +
+                 "\n" + pathlib.Path(stdout_file).read_text(errors="replace")).lower()
+          classes = [
+              ("TOKEN_OAUTH_INVALIDO", r'invalid_grant|invalid.refresh.token|refresh token.*(expired|invalid)|token refresh error'),
+              ("HTTP_401", r'\b401\b|\bunauthoriz(?:ed|ation)\b'),
+              ("HTTP_403", r'\b403\b|forbidden|access.denied|not authorized'),
+              ("HTTP_400", r'\b400\b|bad.request|invalid_request'),
+              ("HTTP_429", r'\b429\b|too many requests'),
+              ("HTTP_5XX", r'\b(500|502|503|504)\b|internal server error'),
+              ("DNS", r'enotfound|eai_again|getaddrinfo'),
+              ("TIMEOUT", r'etimedout|timeout|timed out'),
+              ("TLS_CERTIFICADO", r'cert(ificate)?( verification)? failed|unable to verify|self.signed'),
+              ("CONEXAO_RESETADA", r'econnreset|socket hang up|connection reset'),
+              ("CONEXAO_RECUSADA", r'econnrefused|connection refused'),
+              ("ERRO_NETWORK_GENERICO", r'network error|fetch failed'),
+              ("COMANDO_CLI", r'unknown command|command not found|invalid option'),
+              ("CONFIGURACAO_CLI", r'cli_config|unable to resolve profile|profile.*not found'),
+          ]
+          category=next((name for name,pattern in classes if re.search(pattern,raw)), "NAO_CLASSIFICADO")
+          print(f"DIAGNOSTICO_{stage}={category}")
           PY
           }
 
-          echo "Passo 1: consultar associacao a conta Amazon (get-vendor-list)."
-          if ask smapi get-vendor-list >"$WORK/vendors.out" 2>"$WORK/vendors.err"; then
+          echo "PASSO_1=INICIANDO_GET_VENDOR_LIST"
+          if ask smapi get-vendor-list >"$WORK/vendor.out" 2>"$WORK/vendor.err"; then
             echo "PASSO_1=OK_CONSULTA_CONTA_AMAZON"
-            # Confirmar localmente o Vendor ID, sem imprimir lista de vendors.
-            python3 - "$WORK/vendors.out" <<'PY'
-          import json, pathlib, os, sys
-          raw=pathlib.Path(sys.argv[1]).read_text(errors="replace")
+            python3 - "$WORK/vendor.out" <<'PY'
+          import json, os, pathlib, sys
           try:
-              result=json.loads(raw)
-              # Apenas registrar se o ID foi localizado; nao exibir IDs/nomes.
-              matched=os.environ.get("ASK_VENDOR_ID", "") in json.dumps(result)
+              payload=json.loads(pathlib.Path(sys.argv[1]).read_text(errors="replace"))
+              matched=os.environ["ASK_VENDOR_ID"] in json.dumps(payload)
               print("VENDOR_ID_NA_CONTA=" + ("CONFIRMADO" if matched else "NAO_ENCONTRADO_NA_RESPOSTA"))
-          except (ValueError, TypeError):
-              print("VENDOR_ID_NA_CONTA=RESPOSTA_NAO_E_JSON")
+          except (ValueError, KeyError, TypeError):
+              print("VENDOR_ID_NA_CONTA=FORMATO_INESPERADO")
           PY
           else
-            diagnose "CONTA" "$WORK/vendors.out" "$WORK/vendors.err"
-            echo "::error::Falhou a consulta da conta Amazon. Nenhum token ou resposta privada foi exibido."
+            categorize CONTA "$WORK/vendor.out" "$WORK/vendor.err"
+            echo "::error::GET_VENDOR_LIST_FALHOU (somente categoria publicada, sem dados da conta)."
             exit 1
           fi
 
-          echo "Passo 2: consultar lista de skills do vendor (list-skills-for-vendor)."
+          echo "PASSO_2=INICIANDO_LIST_SKILLS_FOR_VENDOR"
           if ask smapi list-skills-for-vendor >"$WORK/skills.out" 2>"$WORK/skills.err"; then
             echo "PASSO_2=OK_CONSULTA_SKILLS"
-            echo "SUCESSO: conexao Amazon SMAPI validada sem criar, atualizar ou publicar skills."
+            echo "SUCESSO: conexao SMAPI validada (somente leitura)."
           else
-            diagnose "SKILLS" "$WORK/skills.out" "$WORK/skills.err"
-            echo "::error::Falhou a consulta das skills. Nenhum token ou resposta privada foi exibido."
+            categorize SKILLS "$WORK/skills.out" "$WORK/skills.err"
+            echo "::error::LIST_SKILLS_FOR_VENDOR_FALHOU (somente categoria publicada)."
             exit 1
           fi
