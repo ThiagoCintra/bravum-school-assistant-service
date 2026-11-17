@@ -1,6 +1,6 @@
 name: "Alexa | verificar autenticacao Amazon (somente leitura)"
 
-# NUNCA executar automaticamente nem publicar skill.
+# Somente execucao manual; nenhum push, PR, cron ou deploy.
 on:
   workflow_dispatch:
 
@@ -13,44 +13,100 @@ concurrency:
 
 jobs:
   check-amazon-auth:
-    name: "Consultar acesso ao Alexa Developer (somente leitura)"
+    name: "Diagnosticar acesso Amazon sem expor credenciais"
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      ASK_REFRESH_TOKEN: ${{ secrets.ASK_REFRESH_TOKEN }}
-      ASK_VENDOR_ID: ${{ secrets.ASK_VENDOR_ID }}
     steps:
-      - name: Verificar se ambos os Secrets existem
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${ASK_REFRESH_TOKEN}" || -z "${ASK_VENDOR_ID}" ]]; then
-            echo "::error::Configure ASK_REFRESH_TOKEN e ASK_VENDOR_ID em Settings > Secrets and variables > Actions."
-            exit 1
-          fi
-          echo "Os dois Secrets estao configurados (valores nao exibidos)."
-
-      - name: Preparar Node.js no runner temporario
+      - name: Node.js 22 no runner temporario
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Instalar ASK CLI oficial no runner temporario
+      - name: Instalar ASK CLI sem expor Secrets ao instalador
         shell: bash
         run: |
           set -euo pipefail
-          npm install --global ask-cli@latest --no-audit --no-fund --loglevel=error >/dev/null
+          npm install --global ask-cli@latest --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null
+          ask --version
 
-      - name: Testar autenticacao Amazon por consulta de skills
+      - name: Verificar autorizacao e permissao Amazon (somente leitura)
         shell: bash
+        env:
+          ASK_REFRESH_TOKEN: ${{ secrets.ASK_REFRESH_TOKEN }}
+          ASK_VENDOR_ID: ${{ secrets.ASK_VENDOR_ID }}
         run: |
           set -euo pipefail
-          # Nao imprimir tokens, IDs, nomes, payloads ou erros que possam conter dados da conta.
-          if ask smapi list-skills-for-vendor >/dev/null 2>/dev/null; then
-            echo "SUCESSO: Amazon Developer autorizada e SMAPI consultada (somente leitura)."
-            echo "Nenhuma skill foi criada ou alterada."
+          set +x
+          umask 077
+
+          if [[ -z "${ASK_REFRESH_TOKEN}" || -z "${ASK_VENDOR_ID}" ]]; then
+            echo "::error::FALHA_CONFIG: um dos Actions Secrets nao existe ou esta vazio."
+            exit 1
+          fi
+
+          WORK="$(mktemp -d)"
+          trap 'rm -rf "$WORK"' EXIT
+
+          # Nao usar --debug: ele pode incluir headers, URLs e tokens.
+          # Guardar stdout/stderr em arquivos efemeros, nunca publicar conteudo bruto.
+          diagnose() {
+            python3 - "$1" "$2" "$3" <<'PY'
+          import sys, pathlib, re
+          stage, stdout_path, stderr_path = sys.argv[1:]
+          content = (pathlib.Path(stderr_path).read_text(errors="replace")
+                     + "\n" + pathlib.Path(stdout_path).read_text(errors="replace")).lower()
+          if re.search(r'invalid_grant|refresh token.*(expired|invalid)|token refresh error', content):
+              category = "TOKEN_EXPIRADO_OU_INVALIDO"
+          elif re.search(r'\b401\b|unauthorized|unauthorised', content):
+              category = "HTTP_401_AUTENTICACAO"
+          elif re.search(r'\b403\b|forbidden|access.denied|not authorized', content):
+              category = "HTTP_403_PERMISSAO_OU_CADASTRO"
+          elif re.search(r'\b429\b|too many requests|rate.limit', content):
+              category = "HTTP_429_LIMITE"
+          elif re.search(r'\b400\b|bad.request|invalid_request', content):
+              category = "HTTP_400_REQUISICAO"
+          elif re.search(r'\b(500|502|503|504)\b|internal server error', content):
+              category = "HTTP_5XX_AMAZON"
+          elif re.search(r'econnreset|econnrefused|etimedout|enotfound|network|timeout', content):
+              category = "REDE_OU_TIMEOUT"
+          elif re.search(r'unknown command|not a command|command not found|invalid option', content):
+              category = "COMANDO_OU_VERSAO_CLI"
+          elif re.search(r'profile|cli_config|configuration', content):
+              category = "PERFIL_OU_CONFIGURACAO_CLI"
+          else:
+              category = "ERRO_NAO_CLASSIFICADO"
+          print("DIAGNOSTICO_" + stage + "=" + category)
+          PY
+          }
+
+          echo "Passo 1: consultar associacao a conta Amazon (get-vendor-list)."
+          if ask smapi get-vendor-list >"$WORK/vendors.out" 2>"$WORK/vendors.err"; then
+            echo "PASSO_1=OK_CONSULTA_CONTA_AMAZON"
+            # Confirmar localmente o Vendor ID, sem imprimir lista de vendors.
+            python3 - "$WORK/vendors.out" <<'PY'
+          import json, pathlib, os, sys
+          raw=pathlib.Path(sys.argv[1]).read_text(errors="replace")
+          try:
+              result=json.loads(raw)
+              # Apenas registrar se o ID foi localizado; nao exibir IDs/nomes.
+              matched=os.environ.get("ASK_VENDOR_ID", "") in json.dumps(result)
+              print("VENDOR_ID_NA_CONTA=" + ("CONFIRMADO" if matched else "NAO_ENCONTRADO_NA_RESPOSTA"))
+          except (ValueError, TypeError):
+              print("VENDOR_ID_NA_CONTA=RESPOSTA_NAO_E_JSON")
+          PY
           else
-            echo "::error::Consulta SMAPI falhou. Confira a autorizacao Amazon, o Vendor ID e os Secrets. Nao exponha tokens."
+            diagnose "CONTA" "$WORK/vendors.out" "$WORK/vendors.err"
+            echo "::error::Falhou a consulta da conta Amazon. Nenhum token ou resposta privada foi exibido."
+            exit 1
+          fi
+
+          echo "Passo 2: consultar lista de skills do vendor (list-skills-for-vendor)."
+          if ask smapi list-skills-for-vendor >"$WORK/skills.out" 2>"$WORK/skills.err"; then
+            echo "PASSO_2=OK_CONSULTA_SKILLS"
+            echo "SUCESSO: conexao Amazon SMAPI validada sem criar, atualizar ou publicar skills."
+          else
+            diagnose "SKILLS" "$WORK/skills.out" "$WORK/skills.err"
+            echo "::error::Falhou a consulta das skills. Nenhum token ou resposta privada foi exibido."
             exit 1
           fi
