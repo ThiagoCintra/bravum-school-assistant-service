@@ -56,6 +56,42 @@ jobs:
           probe SMAPI https://api.amazonalexa.com/v1/vendors
           echo "Nota: HTTP 400/401/403/405 sao aceitaveis nos testes sem credenciais; mostram que o HTTPS respondeu."
 
+      - name: Verificar resolucao DNS pelo Node.js (sem Secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Esta etapa nao recebe ASK_REFRESH_TOKEN nem ASK_VENDOR_ID.
+          # Verifica Node/libc (dns.lookup) e DNS direto (dns.resolve4),
+          # sem requests autenticados nem impressao de enderecos IP.
+          node <<'NODE'
+          const dns = require('node:dns').promises;
+          const targets = [
+            ['LWA', 'api.amazon.com'],
+            ['SMAPI', 'api.amazonalexa.com']
+          ];
+          (async () => {
+            for (const [label, hostname] of targets) {
+              try {
+                await dns.lookup(hostname, {family: 4});
+                console.log(`NODE_LOOKUP_${label}=OK`);
+              } catch (err) {
+                const codes = ['ENOTFOUND', 'EAI_AGAIN', 'ETIMEOUT', 'ECONNREFUSED'];
+                console.log(`NODE_LOOKUP_${label}=${codes.includes(err.code) ? err.code : 'FALHOU'}`);
+              }
+              try {
+                await dns.resolve4(hostname);
+                console.log(`NODE_RESOLVE4_${label}=OK`);
+              } catch (err) {
+                const codes = ['ENOTFOUND', 'EAI_AGAIN', 'ETIMEOUT', 'ECONNREFUSED', 'ENODATA'];
+                console.log(`NODE_RESOLVE4_${label}=${codes.includes(err.code) ? err.code : 'FALHOU'}`);
+              }
+            }
+          })().catch(() => {
+            console.log('NODE_DNS=ERRO_INESPERADO');
+            process.exitCode = 1;
+          });
+          NODE
+
       - name: Validar autorizacao Amazon somente leitura
         shell: bash
         env:
@@ -98,6 +134,27 @@ jobs:
           ]
           category=next((name for name,pattern in classes if re.search(pattern,raw)), "NAO_CLASSIFICADO")
           print(f"DIAGNOSTICO_{stage}={category}")
+          if category in ("DNS", "TIMEOUT", "ERRO_NETWORK_GENERICO"):
+              # Somente o nome do host, nunca a URL completa nem a mensagem bruta.
+              # O filtro nao permite revelar tokens ou subdominios arbitrarios.
+              match = re.search(
+                  r'getaddrinfo\\s+(?:ENOTFOUND|EAI_AGAIN)\\s+([a-z0-9._-]+)',
+                  raw, re.I
+              )
+              if match:
+                  host = match.group(1).lower().rstrip(".")
+                  if host in ("undefined", "null", "none", "localhost"):
+                      safe_host = "INVALIDO_OU_AUSENTE"
+                  elif re.fullmatch(r'[a-z0-9.-]{1,253}', host) and (
+                      host == "amazon.com" or host.endswith(".amazon.com") or
+                      host == "amazonalexa.com" or host.endswith(".amazonalexa.com")
+                  ):
+                      safe_host = host
+                  else:
+                      safe_host = "DOMINIO_NAO_AMAZON_OCULTO"
+                  print(f"HOST_FALHA_{stage}={safe_host}")
+              else:
+                  print(f"HOST_FALHA_{stage}=NAO_IDENTIFICADO")
           PY
           }
 
