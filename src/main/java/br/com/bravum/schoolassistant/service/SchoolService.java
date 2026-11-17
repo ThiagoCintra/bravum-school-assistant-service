@@ -89,9 +89,15 @@ public class SchoolService {
         if (connection == null || !tenantId.equals(connection.tenantId)) throw notFound("Integração");
         if (!connection.providerCode.equalsIgnoreCase(input.source() == null ? "" : input.source()))
             throw badRequest("A origem não corresponde à integração");
+        // Serializa importações da mesma conexão para que concorrência não duplique o fingerprint.
+        em.lock(connection, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         ApiModels.CommunicationInput payload = input.communication();
         if (payload == null || (blank(payload.title()) && blank(payload.body())))
             throw badRequest("Comunicado sem título ou texto");
+        if ((payload.title() != null && payload.title().length() > 350)
+                || (payload.category() != null && payload.category().length() > 100)
+                || (input.externalCommunicationId() != null && input.externalCommunicationId().length() > 200))
+            throw badRequest("Campos excedem o tamanho permitido");
 
         String fingerprint = Fingerprint.communication(connectionId, input.source(),
                 input.externalCommunicationId(), payload.title(), payload.body(), payload.category(),
@@ -237,7 +243,8 @@ public class SchoolService {
             throw badRequest("Prazo requer evidência em dueDateSource");
         String type = blank(input.classification()) ? "UNKNOWN" : input.classification().trim().toUpperCase(Locale.ROOT);
         if (!CLASSIFICATIONS.contains(type)) throw badRequest("Classificação inválida");
-        String key = blank(input.sourceItemKey()) ? "primary" : input.sourceItemKey().trim();
+        String requestedKey = blank(input.sourceItemKey()) ? "primary" : input.sourceItemKey().trim();
+        String key = context == null ? requestedKey : context.id + ":" + requestedKey;
         if (key.length() > 100) throw badRequest("sourceItemKey excede 100 caracteres");
         List<Assignment> existing = em.createQuery(
                 "select a from Assignment a where a.tenantId=:t and a.communicationId=:c and a.sourceItemKey=:k",
