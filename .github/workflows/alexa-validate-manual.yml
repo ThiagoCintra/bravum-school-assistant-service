@@ -82,6 +82,10 @@ jobs:
             echo "::error::Faltam ASK_REFRESH_TOKEN e/ou ASK_VENDOR_ID nos Actions Secrets. Configure diretamente no GitHub; nunca envie ao ChatGPT."
             exit 1
           fi
+      - name: Node.js 22 para ASK CLI
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Instalar ASK CLI apenas no runner efemero
         shell: bash
         run: |
